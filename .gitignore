@@ -1,3 +1,11 @@
 /.opencode
+/.agents 
 /AGENTS.md
 /ALL.txt
+/BUILD_GUIDE.md
+/implementation_plan.md
+/skills-lock.json
+/task_completion_backend.md
+/task_completion_frontend.md
+/task.md
+/project_feature_summary.md
