@@ -1,0 +1,4 @@
+# Ignore ffmpeg binaries
+dist_tools/ffmpeg/
+# Ignore installers/releases
+releases/

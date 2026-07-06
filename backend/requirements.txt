@@ -1,0 +1,11 @@
+fastapi
+uvicorn[standard]
+sqlmodel
+aiosqlite
+aiofiles
+yt-dlp
+mutagen
+python-multipart
+websockets
+pydantic
+pydantic-settings
