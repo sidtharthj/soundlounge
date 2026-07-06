@@ -8,6 +8,14 @@ This file is used as the PyInstaller target. It:
 
 import os
 import sys
+import io
+
+# Prevent AttributeError/ValueError when running as a windowed/noconsole app where stdout/stderr are None
+if sys.stdout is None:
+    sys.stdout = io.StringIO()
+if sys.stderr is None:
+    sys.stderr = io.StringIO()
+
 import time
 import threading
 import webbrowser

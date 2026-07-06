@@ -20,11 +20,14 @@ def _get_base_dir() -> Path:
 
 
 def _get_data_dir() -> Path:
-    """Return a persistent data directory next to the executable (or project root in dev)."""
+    """Return a persistent data directory in the user's Local AppData (or project root in dev)."""
     if getattr(sys, "frozen", False):
-        # Store user data next to the .exe so it persists across runs
-        exe_dir = Path(sys.executable).parent
-        return exe_dir / "SoundLounge_Data"
+        # Store user data in LOCALAPPDATA to avoid permission issues when installed in Program Files.
+        # Fall back to user's home directory if LOCALAPPDATA is not available.
+        local_app_data = os.environ.get("LOCALAPPDATA")
+        if local_app_data:
+            return Path(local_app_data) / "SoundLounge"
+        return Path.home() / ".soundlounge"
     return Path(__file__).resolve().parent.parent / "data"
 
 

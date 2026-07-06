@@ -92,7 +92,7 @@ Filename: "{app}\{#AppExeName}"; \
 ; Clean up the user-data folder (downloads, thumbnails, database) on uninstall
 ; NOTE: this asks the user via the "Also delete user data?" prompt below.
 ; Comment out if you want to preserve user data across uninstall/reinstall.
-Type: filesandordirs; Name: "{app}\SoundLounge_Data"
+Type: filesandordirs; Name: "{localappdata}\SoundLounge"
 
 [Code]
 // ── Optional: ask user whether to delete their music data on uninstall ────────
@@ -103,7 +103,7 @@ var
 begin
   if CurUninstallStep = usPostUninstall then
   begin
-    DataDir := ExpandConstant('{app}\SoundLounge_Data');
+    DataDir := ExpandConstant('{localappdata}\SoundLounge');
     if DirExists(DataDir) then
     begin
       Msg := 'Sound Lounge has found your music library data at:' + #13#10 +
