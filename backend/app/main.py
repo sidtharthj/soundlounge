@@ -29,15 +29,15 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup actions
+    # Startup
     logger.info("Initializing database...")
     await init_db()
-    
+
     logger.info("Resuming pending downloads...")
     await download_manager.resume_pending_on_startup()
-    
+
     yield
-    # Shutdown actions
+    # Shutdown
     logger.info("Shutting down Sound Lounge backend...")
 
 
@@ -45,9 +45,12 @@ app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
     lifespan=lifespan,
+    # Disable automatic docs in prod (can be re-enabled in debug mode)
+    docs_url="/api/docs" if settings.DEBUG else None,
+    redoc_url=None,
 )
 
-# CORS configuration
+# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
@@ -56,27 +59,26 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include API Routers under /api
-api_router = FastAPI()
-api_router.include_router(search.router)
-api_router.include_router(download.router)
-api_router.include_router(songs.router)
-api_router.include_router(playlists.router)
-api_router.include_router(favorites.router)
-api_router.include_router(history.router)
-api_router.include_router(settings_router.router)
-api_router.include_router(media.router)
+# --- API routers mounted at /api ---
+api_app = FastAPI(title="Sound Lounge API")
+api_app.include_router(search.router)
+api_app.include_router(download.router)
+api_app.include_router(songs.router)
+api_app.include_router(playlists.router)
+api_app.include_router(favorites.router)
+api_app.include_router(history.router)
+api_app.include_router(settings_router.router)
+api_app.include_router(media.router)
 
-app.mount("/api", api_router)
+app.mount("/api", api_app)
 
 
-# WebSocket endpoint
+# --- WebSocket ---
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await ws_manager.connect(websocket)
     try:
         while True:
-            # Maintain connection and read messages if any
             await websocket.receive_text()
     except WebSocketDisconnect:
         ws_manager.disconnect(websocket)
@@ -85,37 +87,47 @@ async def websocket_endpoint(websocket: WebSocket):
         ws_manager.disconnect(websocket)
 
 
-# Serve Static Files for React Frontend
-# Create static directory if not exists
-os.makedirs(settings.STATIC_DIR, exist_ok=True)
+# --- Static frontend ---
+_static_dir = settings.STATIC_DIR
+os.makedirs(_static_dir, exist_ok=True)
 
-if os.path.exists(settings.STATIC_DIR):
-    app.mount("/static", StaticFiles(directory=settings.STATIC_DIR), name="static")
+_assets_dir = _static_dir / "assets"
+if _assets_dir.exists():
+    app.mount("/assets", StaticFiles(directory=str(_assets_dir)), name="assets")
 
 
-# Fallback to index.html for SPA client-side routing (React Router)
+def _index_response() -> HTMLResponse:
+    index_file = _static_dir / "index.html"
+    if index_file.exists():
+        return HTMLResponse(content=index_file.read_text(encoding="utf-8"), status_code=200)
+    return HTMLResponse(
+        content="""<!DOCTYPE html>
+<html>
+  <head><title>Sound Lounge</title></head>
+  <body style="background:#0a0a0a;color:#fff;font-family:sans-serif;
+               display:flex;justify-content:center;align-items:center;height:100vh;margin:0;">
+    <div style="text-align:center;">
+      <h1 style="color:#1DB954;font-size:2.5rem;margin-bottom:1rem;">🎵 Sound Lounge</h1>
+      <p style="opacity:0.7;">Backend API is running.</p>
+      <p style="opacity:0.5;font-size:0.8rem;">
+        Frontend assets not found — run <code>npm run build</code> in the <code>frontend/</code> folder.
+      </p>
+    </div>
+  </body>
+</html>""",
+        status_code=200,
+    )
+
+
+@app.get("/")
+async def serve_root():
+    return _index_response()
+
+
+# SPA catch-all: any non-API, non-WS path → index.html for React Router
 @app.exception_handler(404)
 async def spa_fallback(request: Request, exc: Exception):
-    # Do not fallback for API requests or WebSocket
-    if request.url.path.startswith("/api") or request.url.path.startswith("/ws"):
+    path = request.url.path
+    if path.startswith("/api") or path.startswith("/ws"):
         return JSONResponse(status_code=404, content={"detail": "Not Found"})
-        
-    index_file = settings.STATIC_DIR / "index.html"
-    if index_file.exists():
-        with open(index_file, "r", encoding="utf-8") as f:
-            return HTMLResponse(content=f.read(), status_code=200)
-            
-    return HTMLResponse(
-        content="""
-        <html>
-            <head><title>Sound Lounge</title></head>
-            <body style="background-color: #0a0a0a; color: #fff; font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0;">
-                <div style="text-align: center;">
-                    <h1 style="color: #1DB954;">Sound Lounge</h1>
-                    <p>API is running, but frontend build assets are missing.</p>
-                </div>
-            </body>
-        </html>
-        """,
-        status_code=200
-    )
+    return _index_response()

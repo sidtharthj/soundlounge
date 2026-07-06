@@ -9,8 +9,8 @@ class WebSocketClient {
   constructor() {
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const host = window.location.host || "localhost:8765";
-    // Check if running on dev port 3000, then proxy to 8765 or 8000
-    const finalHost = host.includes("3000") ? "localhost:8000" : host;
+    // During development (vite on :3000) proxy forwards to :8765
+    const finalHost = host.includes("3000") ? "localhost:8765" : host;
     this.url = `${protocol}//${finalHost}/ws`;
   }
 

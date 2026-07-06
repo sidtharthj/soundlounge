@@ -136,6 +136,10 @@ class DownloadManager:
                 "postprocessors": [],
             }
 
+            # Use bundled FFmpeg if a path is configured
+            if settings.FFMPEG_PATH:
+                ydl_opts["ffmpeg_location"] = settings.FFMPEG_PATH
+
             # Audio post-processing
             audio_format = item.format or settings.DEFAULT_AUDIO_FORMAT
             audio_quality = item.quality or settings.DEFAULT_AUDIO_QUALITY

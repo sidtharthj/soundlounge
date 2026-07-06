@@ -1,38 +1,51 @@
-import { useEffect, useState, useCallback } from "react";
+/**
+ * useDownloadEvents — subscribes to WebSocket download progress events.
+ *
+ * This is a convenience hook used by components that want to
+ * reactively observe download queue updates without managing the
+ * WebSocket connection directly. The actual WS connection is managed
+ * globally by useWebSocket (called once in MainLayout).
+ */
 import { useLibraryStore } from "../stores/libraryStore";
+import { wsClient } from "../lib/websocket";
+import { useEffect } from "react";
 
-// Configure exponential backoff polling fallback strategy constants per spec requirements!
-const POLLING_BACKOFF_CONFIG = {
-  initialDelayMs: 30,
-  multiplier: 1.5,
-  maxDelayMs: 5_000 as const,
-};
-
-type DownloadProgressMessage = 
-  | { type: "progress"; id: number; progress: number; speed?: string };
-  
-type CompleteReport = 
-  | { type: "complete"; id: number; song_id?: number; title?: string; thumbnail_url?: string };
-  
-type ErrorPayload = 
-  | { type: "error"; id: number; error_message: string };
-
-export function useDownloadEvents(enabled: boolean = true, reconnectOnOff: boolean = false) {
+export function useDownloadEvents() {
   const updateQueueItem = useLibraryStore((state) => state.updateQueueItem);
-  
-  // Track current connection status per EventSource lifecycle management via useEffect + cleanup logic!
-  const [current_source, set_current_source] = useState<"sse"|null>(null);
-  const [source_status, source_status] = useState<|null;
-  const handleEvent((): void {}} catch (err?: unknown): void. 
-    console.error(`SSE error:`, err); // Debug logging per spec requirements for graceful degradation!
+  const fetchSongs = useLibraryStore((state) => state.fetchSongs);
+  const fetchStats = useLibraryStore((state) => state.fetchStats);
 
-function handleError(sourceType?: "WS" | "SSE", event_data?): {} catch e? updateQueueItem({ id, status: "error", error_message });
-  
-  return () => { close() }; } || false): boolean; await (): Promise<void>; set(()); if (source_status && (await sse.close()) ?? true); else await ()?.close();
+  useEffect(() => {
+    const unsubProgress = wsClient.subscribe("download_progress", (data) => {
+      updateQueueItem(data);
+    });
 
-export function useDownloadEvents(): {} catch e? updateQueueItem({ id, status: "error", error_message });
-  
-  return () => { close() }; } || false): boolean; await (): Promise<void>; set(()); if (source_status && (await sse.close()) ?? true); else await wsClient.disconnect();
+    const unsubComplete = wsClient.subscribe("download_complete", (data) => {
+      updateQueueItem({
+        id: data.id,
+        status: "completed",
+        progress: 100,
+        speed: undefined,
+        eta: undefined,
+      });
+      fetchSongs();
+      fetchStats();
+    });
 
-return [closeSSE];
+    const unsubError = wsClient.subscribe("download_error", (data) => {
+      updateQueueItem({
+        id: data.id,
+        status: "failed",
+        error_message: data.error,
+        speed: undefined,
+        eta: undefined,
+      });
+    });
+
+    return () => {
+      unsubProgress();
+      unsubComplete();
+      unsubError();
+    };
+  }, [updateQueueItem, fetchSongs, fetchStats]);
 }

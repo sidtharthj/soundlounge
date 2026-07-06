@@ -1,7 +1,43 @@
-"""Application configuration and path setup."""
+"""Application configuration and path setup — supports both dev and PyInstaller frozen modes."""
 
+import os
+import sys
 from pathlib import Path
 from pydantic_settings import BaseSettings
+
+
+def _get_base_dir() -> Path:
+    """Return the base directory that works for both normal Python and PyInstaller bundles."""
+    if getattr(sys, "frozen", False):
+        # Running inside a PyInstaller bundle (_MEIPASS = extracted temp dir)
+        return Path(sys._MEIPASS)  # type: ignore[attr-defined]
+    # Normal Python execution: project root is two levels above this file
+    return Path(__file__).resolve().parent.parent
+
+
+def _get_data_dir() -> Path:
+    """Return a persistent data directory next to the executable (or project root in dev)."""
+    if getattr(sys, "frozen", False):
+        # Store user data next to the .exe so it persists across runs
+        exe_dir = Path(sys.executable).parent
+        return exe_dir / "SoundLounge_Data"
+    return Path(__file__).resolve().parent.parent / "data"
+
+
+def _get_ffmpeg_path() -> str:
+    """Auto-detect ffmpeg in bundled or system paths."""
+    if getattr(sys, "frozen", False):
+        # Look for bundled FFmpeg next to exe
+        exe_dir = Path(sys.executable).parent
+        candidates = [
+            exe_dir / "ffmpeg" / "ffmpeg.exe",
+            exe_dir / "ffmpeg.exe",
+        ]
+        for c in candidates:
+            if c.exists():
+                return str(c)
+    # Dev / system path — let yt-dlp find it automatically
+    return ""
 
 
 class Settings(BaseSettings):
@@ -11,12 +47,15 @@ class Settings(BaseSettings):
     APP_VERSION: str = "1.0.0"
     DEBUG: bool = False
 
-    # Directories (relative to project root by default)
-    BASE_DIR: Path = Path(__file__).resolve().parent.parent
-    DATA_DIR: Path = BASE_DIR / "data"
-    DOWNLOADS_DIR: Path = DATA_DIR / "downloads"
-    THUMBNAILS_DIR: Path = DATA_DIR / "thumbnails"
-    STATIC_DIR: Path = BASE_DIR / "static"
+    # Resolved at startup
+    BASE_DIR: Path = _get_base_dir()
+    DATA_DIR: Path = _get_data_dir()
+    DOWNLOADS_DIR: Path = _get_data_dir() / "downloads"
+    THUMBNAILS_DIR: Path = _get_data_dir() / "thumbnails"
+    STATIC_DIR: Path = _get_base_dir() / "static"
+
+    # FFmpeg (auto-detected; can be overridden by settings in DB)
+    FFMPEG_PATH: str = _get_ffmpeg_path()
 
     # Database
     DATABASE_URL: str = ""
@@ -28,16 +67,16 @@ class Settings(BaseSettings):
 
     # Server
     HOST: str = "0.0.0.0"
-    PORT: int = 8000
+    PORT: int = 8765
 
     # CORS
     CORS_ORIGINS: list[str] = [
         "http://localhost:3000",
         "http://localhost:5173",
-        "http://localhost:8000",
+        "http://localhost:8765",
         "http://127.0.0.1:3000",
         "http://127.0.0.1:5173",
-        "http://127.0.0.1:8000",
+        "http://127.0.0.1:8765",
     ]
 
     class Config:
