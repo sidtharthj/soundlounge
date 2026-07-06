@@ -1,0 +1,3 @@
+# This file keeps the dist_tools/ffmpeg/ folder tracked in Git.
+# ffmpeg.exe and ffprobe.exe are tracked via Git LFS (see .gitattributes).
+# To download them: run .\download_ffmpeg.ps1 from the project root.

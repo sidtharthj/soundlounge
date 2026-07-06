@@ -1,0 +1,3 @@
+# Git attributes
+# We no longer track the large executables in the repo itself.
+# They are ignored in .gitignore.

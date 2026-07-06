@@ -7,10 +7,14 @@ from pydantic_settings import BaseSettings
 
 
 def _get_base_dir() -> Path:
-    """Return the base directory that works for both normal Python and PyInstaller bundles."""
+    """Return the base directory that works for both normal Python and PyInstaller bundles.
+
+    In PyInstaller 6 one-folder mode, sys._MEIPASS points to the _internal/
+    directory which contains all bundled data (static/, app/, ffmpeg/, etc.).
+    """
     if getattr(sys, "frozen", False):
-        # Running inside a PyInstaller bundle (_MEIPASS = extracted temp dir)
-        return Path(sys._MEIPASS)  # type: ignore[attr-defined]
+        # _MEIPASS is the _internal/ folder (PyInstaller 6 one-folder mode)
+        return Path(getattr(sys, "_MEIPASS", Path(sys.executable).parent))  # type: ignore[attr-defined]
     # Normal Python execution: project root is two levels above this file
     return Path(__file__).resolve().parent.parent
 
@@ -25,14 +29,20 @@ def _get_data_dir() -> Path:
 
 
 def _get_ffmpeg_path() -> str:
-    """Auto-detect ffmpeg in bundled or system paths."""
+    """Auto-detect ffmpeg in bundled or system paths.
+
+    PyInstaller 6 one-folder: ffmpeg lives in sys._MEIPASS/ffmpeg/ffmpeg.exe
+    """
     if getattr(sys, "frozen", False):
-        # Look for bundled FFmpeg next to exe
+        meipass = getattr(sys, "_MEIPASS", None)
         exe_dir = Path(sys.executable).parent
-        candidates = [
-            exe_dir / "ffmpeg" / "ffmpeg.exe",
-            exe_dir / "ffmpeg.exe",
-        ]
+        candidates = []
+        if meipass:
+            candidates.append(Path(meipass) / "ffmpeg" / "ffmpeg.exe")   # _internal/ffmpeg/
+        candidates.extend([
+            exe_dir / "ffmpeg" / "ffmpeg.exe",   # next to .exe (legacy layout)
+            exe_dir / "ffmpeg.exe",               # directly next to .exe
+        ])
         for c in candidates:
             if c.exists():
                 return str(c)
