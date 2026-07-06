@@ -8,13 +8,29 @@ This file is used as the PyInstaller target. It:
 
 import os
 import sys
-import io
 
-# Prevent AttributeError/ValueError when running as a windowed/noconsole app where stdout/stderr are None
-if sys.stdout is None:
-    sys.stdout = io.StringIO()
-if sys.stderr is None:
-    sys.stderr = io.StringIO()
+# Prevent AttributeError/ValueError when running as a windowed/noconsole app where stdout/stderr are None.
+# In frozen mode, redirect them to a log file in the user's Local AppData directory so we can diagnose crashes.
+if sys.stdout is None or sys.stderr is None:
+    local_app_data = os.environ.get("LOCALAPPDATA")
+    if local_app_data:
+        log_dir = os.path.join(local_app_data, "SoundLounge")
+    else:
+        log_dir = os.path.join(os.path.expanduser("~"), ".soundlounge")
+    
+    try:
+        os.makedirs(log_dir, exist_ok=True)
+        log_file = open(os.path.join(log_dir, "soundlounge.log"), "a", encoding="utf-8", buffering=1)
+        if sys.stdout is None:
+            sys.stdout = log_file
+        if sys.stderr is None:
+            sys.stderr = log_file
+    except Exception:
+        import io
+        if sys.stdout is None:
+            sys.stdout = io.StringIO()
+        if sys.stderr is None:
+            sys.stderr = io.StringIO()
 
 import time
 import threading
@@ -65,25 +81,42 @@ def _open_browser(port: int, delay: float = 2.5) -> None:
 
 
 def main() -> None:
-    _setup_ffmpeg()
+    try:
+        _setup_ffmpeg()
 
-    # Import here (after path setup) so config resolves correctly
-    import uvicorn
-    from app.config import settings
+        # Import here (after path setup) so config resolves correctly
+        import uvicorn
+        from app.config import settings
 
-    port = settings.PORT
-    logger.info(f"Starting Sound Lounge on http://127.0.0.1:{port}")
+        port = settings.PORT
+        logger.info(f"Starting Sound Lounge on http://127.0.0.1:{port}")
 
-    _open_browser(port)
+        _open_browser(port)
 
-    uvicorn.run(
-        "app.main:app",
-        host=settings.HOST,
-        port=port,
-        log_level="warning",
-        # Disable reload in production
-        reload=False,
-    )
+        uvicorn.run(
+            "app.main:app",
+            host=settings.HOST,
+            port=port,
+            log_level="warning",
+            # Disable reload in production
+            reload=False,
+        )
+    except Exception as e:
+        logger.exception("Application failed to start:")
+        if sys.platform == "win32":
+            try:
+                import ctypes
+                import traceback
+                tb_str = traceback.format_exc()
+                ctypes.windll.user32.MessageBoxW(
+                    0, 
+                    f"Sound Lounge failed to start:\n\n{tb_str}", 
+                    "Sound Lounge Error", 
+                    0x10  # MB_ICONERROR
+                )
+            except Exception:
+                pass
+        raise
 
 
 if __name__ == "__main__":

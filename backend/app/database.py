@@ -21,36 +21,37 @@ async def get_session() -> AsyncSession:  # type: ignore[misc]
         yield session
 
 
-# ── FTS5 setup ────────────────────────────────────────────────────────────────
-
-FTS5_SETUP_SQL = """
--- FTS5 virtual table
-CREATE VIRTUAL TABLE IF NOT EXISTS songs_fts USING fts5(
-    title,
-    artist,
-    album,
-    content='songs',
-    content_rowid='id'
-);
-
--- Triggers to keep FTS in sync
-CREATE TRIGGER IF NOT EXISTS songs_ai AFTER INSERT ON songs BEGIN
-    INSERT INTO songs_fts(rowid, title, artist, album)
-    VALUES (new.id, new.title, new.artist, new.album);
-END;
-
-CREATE TRIGGER IF NOT EXISTS songs_ad AFTER DELETE ON songs BEGIN
-    INSERT INTO songs_fts(songs_fts, rowid, title, artist, album)
-    VALUES ('delete', old.id, old.title, old.artist, old.album);
-END;
-
-CREATE TRIGGER IF NOT EXISTS songs_au AFTER UPDATE ON songs BEGIN
-    INSERT INTO songs_fts(songs_fts, rowid, title, artist, album)
-    VALUES ('delete', old.id, old.title, old.artist, old.album);
-    INSERT INTO songs_fts(rowid, title, artist, album)
-    VALUES (new.id, new.title, new.artist, new.album);
-END;
-"""
+FTS5_SETUP_SQL = [
+    """
+    CREATE VIRTUAL TABLE IF NOT EXISTS songs_fts USING fts5(
+        title,
+        artist,
+        album,
+        content='songs',
+        content_rowid='id'
+    );
+    """,
+    """
+    CREATE TRIGGER IF NOT EXISTS songs_ai AFTER INSERT ON songs BEGIN
+        INSERT INTO songs_fts(rowid, title, artist, album)
+        VALUES (new.id, new.title, new.artist, new.album);
+    END;
+    """,
+    """
+    CREATE TRIGGER IF NOT EXISTS songs_ad AFTER DELETE ON songs BEGIN
+        INSERT INTO songs_fts(songs_fts, rowid, title, artist, album)
+        VALUES ('delete', old.id, old.title, old.artist, old.album);
+    END;
+    """,
+    """
+    CREATE TRIGGER IF NOT EXISTS songs_au AFTER UPDATE ON songs BEGIN
+        INSERT INTO songs_fts(songs_fts, rowid, title, artist, album)
+        VALUES ('delete', old.id, old.title, old.artist, old.album);
+        INSERT INTO songs_fts(rowid, title, artist, album)
+        VALUES (new.id, new.title, new.artist, new.album);
+    END;
+    """
+]
 
 
 async def init_db() -> None:
@@ -60,7 +61,7 @@ async def init_db() -> None:
 
     # FTS5 and triggers must be run via raw SQL
     async with async_session() as session:
-        for statement in FTS5_SETUP_SQL.strip().split(";"):
+        for statement in FTS5_SETUP_SQL:
             stmt = statement.strip()
             if stmt:
                 await session.execute(text(stmt))
