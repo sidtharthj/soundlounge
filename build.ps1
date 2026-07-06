@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     SoundLounge full release build script.
 
@@ -139,12 +139,11 @@ if (-not (Test-Path $ExePath)) {
 if (-not $SkipInnoSetup) {
     Write-Step "Running Inno Setup Compiler"
 
-    # Common Inno Setup install locations
     $IsccCandidates = @(
         "ISCC.exe",  # In PATH
-        "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
-        "${env:ProgramFiles}\Inno Setup 6\ISCC.exe",
-        "${env:ProgramFiles(x86)}\Inno Setup 5\ISCC.exe",
+        "$env:SystemDrive\Program Files (x86)\Inno Setup 6\ISCC.exe",
+        "$env:ProgramFiles\Inno Setup 6\ISCC.exe",
+        "$env:SystemDrive\Program Files (x86)\Inno Setup 5\ISCC.exe"
     )
     $IsccExe = $null
     foreach ($c in $IsccCandidates) {
