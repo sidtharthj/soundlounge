@@ -65,21 +65,29 @@ class DownloadManager:
         return False
 
     async def cancel(self, queue_id: int) -> bool:
-        """Cancel an active or pending download."""
+        """Cancel an active or pending download. Returns True if cancelled, False if already inactive."""
         self._cancel_flags[queue_id] = True
         self._paused.discard(queue_id)
         task = self._active_tasks.pop(queue_id, None)
-        if task and not task.done():
-            task.cancel()
+        was_active = False
+
         async with async_session() as session:
             item = await session.get(DownloadQueue, queue_id)
             if item:
-                item.status = "cancelled"
-                item.error_message = "Cancelled by user"
-                session.add(item)
-                await session.commit()
-        await ws_manager.broadcast_download_progress(queue_id, "cancelled", 0)
-        return True
+                if item.status in ("pending", "downloading", "paused"):
+                    item.status = "cancelled"
+                    item.error_message = "Cancelled by user"
+                    session.add(item)
+                    await session.commit()
+                    was_active = True
+
+        if task and not task.done():
+            task.cancel()
+            
+        if was_active:
+            await ws_manager.broadcast_download_progress(queue_id, "cancelled", 0)
+            
+        return was_active
 
     async def resume_pending_on_startup(self) -> None:
         """Re-enqueue any downloads left in pending/downloading state (e.g. after crash)."""
@@ -136,9 +144,14 @@ class DownloadManager:
                 "postprocessors": [],
             }
 
-            # Use bundled FFmpeg if a path is configured
-            if settings.FFMPEG_PATH:
-                ydl_opts["ffmpeg_location"] = settings.FFMPEG_PATH
+            # Check DB for custom ffmpeg path
+            from app.models.settings import Setting
+            stmt = select(Setting).where(Setting.key == "ffmpeg_path")
+            db_ffmpeg = (await session.execute(stmt)).scalars().first()
+            ffmpeg_loc = db_ffmpeg.value if db_ffmpeg and db_ffmpeg.value else settings.FFMPEG_PATH
+
+            if ffmpeg_loc:
+                ydl_opts["ffmpeg_location"] = ffmpeg_loc
 
             # Audio post-processing
             audio_format = item.format or settings.DEFAULT_AUDIO_FORMAT

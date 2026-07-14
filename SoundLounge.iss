@@ -11,7 +11,7 @@
 ; Users need NOTHING pre-installed. Just run SoundLounge-Setup.exe.
 
 #define AppName      "Sound Lounge"
-#define AppVersion   "1.0.0"
+#define AppVersion   "1.2"
 #define AppPublisher "Sound Lounge"
 #define AppURL       "https://github.com/sidtharthj/soundlounge"
 #define AppExeName   "SoundLounge.exe"

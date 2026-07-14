@@ -126,16 +126,18 @@ async def resume_download(id: int) -> dict[str, bool]:
 
 
 @router.delete("/queue/{id}")
-async def cancel_download(id: int) -> dict[str, bool]:
+async def cancel_download(
+    id: int,
+    session: AsyncSession = Depends(get_session)
+) -> dict[str, bool]:
     """Cancel a pending or downloading task, or delete a completed record from history."""
     success = await download_manager.cancel(id)
     if not success:
         # If it's not active in download manager, we can delete the database record
-        async with get_session() as session:
-            item = await session.get(DownloadQueue, id)
-            if item:
-                await session.delete(item)
-                await session.commit()
-                return {"success": True}
+        item = await session.get(DownloadQueue, id)
+        if item:
+            await session.delete(item)
+            await session.commit()
+            return {"success": True}
         raise HTTPException(status_code=404, detail="Download task not found")
     return {"success": True}
